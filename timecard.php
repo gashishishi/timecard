@@ -1,3 +1,24 @@
+<?php
+require_once 'classes/attendance.php';
+if(!empty($_POST['timecardId'])){
+  $timecardId = $_POST['timecardId'];
+  $attendance = New Attendance;
+  if(!empty($_POST['end'])){
+    $items = $attendance->getAttendanceInfo($timecardId);
+    $start = $items['workStart'];
+    $totalWork = $items['totalWork'];
+    $actualWork = $items['actualWork'];
+    $end = $items['workEnd'];
+    $rests = [$items['rest_h'], $items['rest_i']];
+  } else {
+    // 勤務終了時と勤務開始前以外はこちらの分岐
+    $start = $attendance->getStartWork($timecardId);
+    $rests = $attendance->getTotalRest($timecardId);
+  }
+}
+var_dump($start);
+?>
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -19,19 +40,17 @@
         <form action="put-attendance.php" method="post">
             <p>タイムカード</p>
             <button type="submit" id="start" name="start" value="start">出勤</button>
-            <p></p>
+            <p>出勤時間: <?= $start ?? '' ;?></p>
             <button type="submit" id="end" name="end" value="end" disabled >退勤</button>
-            <p></p>
+            <p>退勤時間: <?= $end ?? '' ;?></p>
             <p>休憩</p>
-            <button type="submit" id="rest-start" name="rest-start" value="rest-start" disabled >開始</button>
-            <button type="submit" id="rest-end" name="rest-end" value="rest-end" disabled >終了</button>
-            <p></p>
-
-            <p>勤務時間</p>
-            <p></p>
-            <p>実労働時間</p>
-            <p></p>
+            <button type="submit" id="start-rest" name="start-rest" value="start-rest" disabled >開始</button>
+            <button type="submit" id="end-rest" name="end-rest" value="end-rest" disabled >終了</button>
+            <p>現在の総休憩時間: <?= isset($rests) ? $rests[0] .':' .$rests[1] : '00:00' ;?></p>
+            <p>勤務時間: <?= $totalWork ?? '00:00';?></p>
+            <p>実労働時間: <?= $actualWork ?? '00:00';?></p>
             <input type="hidden" name="user" value='1'>
+            <input type="hidden" name="timecardId" value='<?= $timecardId ?? '';?>'>
         </form>
 
     </div>
@@ -61,8 +80,8 @@ setInterval('showClock2()',1000);
 jQuery(function($){
     const start = "<?= $_POST['start'] ?? false; ?>";
     const end = "<?= $_POST['end'] ?? false; ?>";
-    const restStart = "<?= $_POST['rest-start'] ?? false; ?>";
-    const restEnd = "<?= $_POST['rest-end'] ?? false; ?>";
+    const restStart = "<?= $_POST['start-rest'] ?? false; ?>";
+    const restEnd = "<?= $_POST['end-rest'] ?? false; ?>";
 
     if(restEnd){
         disabledEndRest();
@@ -78,8 +97,8 @@ jQuery(function($){
   function disabledStart(){
     $('#start').prop('disabled',true);
     $('#end').prop('disabled',false);
-    $('#rest-start').prop('disabled',false);
-    $('#rest-end').prop('disabled',true);
+    $('#start-rest').prop('disabled',false);
+    $('#end-rest').prop('disabled',true);
     console.log('startbutton');
   }
 
@@ -87,8 +106,8 @@ jQuery(function($){
   function disabledStartRest(){
     $('#start').prop('disabled',true);
     $('#end').prop('disabled',true);
-    $('#rest-start').prop('disabled',true);
-    $('#rest-end').prop('disabled',false);
+    $('#start-rest').prop('disabled',true);
+    $('#end-rest').prop('disabled',false);
     console.log('reststart');
   }
 
@@ -96,8 +115,8 @@ jQuery(function($){
   function disabledEndRest(){
     $('#start').prop('disabled',true);
     $('#end').prop('disabled',false);
-    $('#rest-start').prop('disabled',false);
-    $('#rest-end').prop('disabled',true);
+    $('#start-rest').prop('disabled',false);
+    $('#end-rest').prop('disabled',true);
     console.log('reststart');
   }
 
@@ -105,8 +124,8 @@ jQuery(function($){
   function buttonInit(){
     $('#start').prop('disabled',false);
     $('#end').prop('disabled',true);
-    $('#rest-start').prop('disabled',true);
-    $('#rest-end').prop('disabled',true);
+    $('#start-rest').prop('disabled',true);
+    $('#end-rest').prop('disabled',true);
   }
 
 });

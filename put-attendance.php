@@ -1,34 +1,50 @@
 <?php
 require_once 'classes/attendance.php';
 $attendance = new Attendance;
-$timecards = '';
-if($_POST && empty($_POST['start'])){
-    $timecards = $attendance->getTimecardByUserId($_POST['user']);
+$timecards = [];
+
+/** リダイレクトする */
+function redirect() {
+    header('Location: timecard.php',true,307);
 }
-print_r($_POST);
-print_r($timecards);
 
-if(!$timecards){
-    if(!empty($_POST['start'])){
-        $attendance->createTimecard($_POST['user']);
-        var_dump('start');
+if(!empty($_POST)){
+    // 勤務開始でなければtimecardsを設定する。
+    if(empty($_POST['start'])){
+        $timecards = $attendance->getTimecardByUserId($_POST['user']);
+    } else {
+        $attendance->startWork($_POST['user']);
+        redirect();
     }
-} else {
-    if(is_null($timecard->end)){
-
-        if(!empty($_POST['end'])){
-            $attendance->updateWork($timecard->id);
-            var_dump('end');
-        } else if(!empty($_POST['rest-start'])){
-            $attendance->createRest($timecard->id);
-            var_dump('reststart');
-        } else if(!empty($_POST['rest-end'])){
-            $attendance->updateRest($timecard->id);
-            var_dump('restend');
+}
+$timecard = '';
+// endがnullであるものが2つ以上あればエラー。
+foreach($timecards as $row){
+    if(is_null($row['end'])){
+        if(!$timecard){
+            $timecard = $row;
+        } else {
+            echo 'error';
         }
     }
 }
-
-function redirect(){
-    header('Location: timecard.php');
+// 勤務開始以外
+if($timecard){
+    if(is_null($timecard['end'])){
+        // $_POSTにtimecardIdを追加
+        $_POST['timecardId'] = $timecard['id'];
+        if(!empty($_POST['end'])){
+            $attendance->endWork($timecard['id']);
+            redirect();
+        } else if(!empty($_POST['start-rest'])){
+            $attendance->startRest($timecard['id']);
+            redirect();
+        } else if(!empty($_POST['end-rest'])){
+            $attendance->endRest($timecard['id']);
+            redirect();
+        }
+    }
 }
+// リダイレクトする
+// header('Location: timecard.php');
+// exit();

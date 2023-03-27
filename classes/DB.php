@@ -43,7 +43,67 @@ class DB{
     }
 
     /** DBクラスのインスタンスを取得する */
-    static function getDbInstance() {
+    public static function getDBInstance() {
         return self::$dbInstance ?? self::$dbInstance = New DB;
+    }
+
+    /** select文を実行する */
+    public function select($sql, array $param){
+        $stmt = $this->dbh->prepare($sql);
+        $stmt->execute($param);
+        return $stmt;
+    }
+
+    /** timecardsにinsertする */
+    public function insertTimecard($sql,array $param){
+        $i = 1;
+        $j = 0;
+        $stmt = $this->dbh->prepare($sql);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_NULL);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_INT);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_STR);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_STR);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_NULL);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_NULL);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_NULL);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_NULL);
+        $stmt->execute();
+    }
+
+    /** timecard_restsにinsertする */
+    public function insertRests($sql,array $param){
+        $i = 1;
+        $j = 0;
+        $stmt = $this->dbh->prepare($sql);
+
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_NULL);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_STR);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_NULL);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_INT);
+
+        $stmt->execute();
+    }
+
+    /** timecardsをupdateする */
+    public function updateTimecards($sql, array $param){
+        $i = 1;
+        $j = 0;
+        $stmt = $this->dbh->prepare($sql);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_STR);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_STR);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_STR);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_STR);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_INT);
+        $stmt->execute();
+    }
+
+    /** timecard_restsをupdateする */
+    public function updateRests($sql, array $param){
+        $i = 1;
+        $j = 0;
+        $stmt = $this->dbh->prepare($sql);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_STR);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_INT);
+        $stmt->execute($param);
     }
 }

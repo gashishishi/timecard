@@ -97,6 +97,15 @@ class DB{
         $stmt->execute();
     }
 
+    public function updateTotalRest($sql,$param){
+        $i = 1;
+        $j = 0;
+        $stmt = $this->dbh->prepare($sql);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_INT);
+        $stmt->bindParam($i++, $param[$j++], PDO::PARAM_INT);
+        $stmt->execute();
+    }
+
     /** timecard_restsをupdateする */
     public function updateRests($sql, array $param){
         $i = 1;

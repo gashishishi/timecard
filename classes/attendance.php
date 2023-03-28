@@ -33,17 +33,14 @@ class Attendance
     /** 休憩終了時間 dateTimeImmutableオブジェクト */
     protected $restEnd;
 
-    /** トータルの休憩時間 $rest_h:$rest_i:00 */
-    protected $rest_h;
+    /** トータルの休憩時間 hh:ii:00 */
+    protected $totalRest = 0;
 
-    /** トータルの休憩時間 $rest_h:$rest_i:00 */
-    protected $rest_i;
+    /** 総労働時間 hh:ii:00 */
+    protected $totalWork = 0;
 
-    /** 総労働時間 YYYY-MM-DD hh:ii:00 */
-    protected $totalWork;
-
-    /** 実労働時間 YYYY-MM-DD hh:ii:00 */
-    protected $actualWork;
+    /** 実労働時間 hh:ii:00 */
+    protected $actualWork = 0;
 
     const DB_ERROR = '接続エラーが発生しました';
 
@@ -60,7 +57,8 @@ class Attendance
     public function getTimecard($timecardId){
         $sql = 'SELECT * FROM timecards WHERE id = ? AND `day` = ?;';
         $param = [$timecardId, $this->dayStr];
-        return $this->db->select($sql, $param);
+        $stmt = $this->db->select($sql, $param);
+        return $stmt;
     }
 
     /** userIdをもとにtimecardsレコードを取得する */
@@ -71,11 +69,26 @@ class Attendance
         return $stmt;
     }
 
+    /** userIdをもとにtimecards_idを取得する */
+    public function getTimecardIdByUserId($userId){
+        $sql = 'SELECT id FROM timecards WHERE user_id = ? AND `day` = ? AND `end` is NULL;';
+        $param = [$userId, $this->dayStr];
+        $stmt = $this->db->select($sql, $param);
+        $timecardId = $stmt->fetch()[0];
+        return $timecardId;
+    }
+
+    /**
+     * 画面表示用に始業時間を取得する。
+     *
+     * @param [type] $timecardId
+     * @return void
+     */
     public function getStartWork($timecardId){
         $sql = "SELECT `start` FROM timecards WHERE id = ?;";
         $param = [$timecardId];
         $stmt = $this->db->select($sql,$param);
-        $start = $stmt->fetch();
+        $start = $stmt->fetch()[0];
         return $start;
     }
 
@@ -106,14 +119,14 @@ class Attendance
             Null,
             Null,
             Null,
-            Null
+            Null,
         ];
 
         $this->db->insertTimecard($sql,$param);
     }
 
     /**
-     * 休憩開始を登録。timecard_restにinsertする。
+     * 休憩開始を登録。timecard_restsにinsertする。
      *
      * @param [type] $timecardId
      * @return void
@@ -139,7 +152,7 @@ class Attendance
      */
     function endRest($timecardId){
         // 対象となるtimecard_restsのidを取得する。
-        $sql = "SELECT * FROM timecard_rests 
+        $sql = "SELECT id, `start` FROM timecard_rests 
                 WHERE timecard_id = ?
                 AND `end` is Null;";
         $param = [$timecardId];
@@ -155,11 +168,21 @@ class Attendance
                 $this->nowStr,
                 $restId
             ];
-            $stmt = $this->db->updateRests($sql,$param);
+            $this->db->updateRests($sql,$param);
         } else {
             echo 'エラーが発生しました。';
         }
 
+        // $endRest = strtotime($this->nowStr);
+        // $add = $endRest - $startRest;
+        // var_dump($add);
+        // // timecardsに休憩時間を登録
+        // $sql = 'UPDATE timecards SET (total_rest_time = total_rest_time + ?)
+        //         WHERE id = ?     
+        //         ;';
+        // $param = [$add, $restId];
+        // $this->db->updateTotalRest($sql,$param);
+    
     }
 
     /**
@@ -174,13 +197,12 @@ class Attendance
         $this->workEnd = $this->now;
         $this->workEndStr = $this->nowStr;
 
-        // タイムカードの情報
+        // タイムカードの情報をプロパティに設定
         $this->setAttendanceInfo($timecardId);
 
-        // 休憩時間
+        // 休憩時間を$totalRestプロパティに設定
         $this->setRestTime($timecardId);
-    
-        // 総労働時間と実労働時間
+        // 総労働時間と実労働時間をプロパティに設定
         $this->setWorkTimes();
 
         // 退勤を登録
@@ -195,7 +217,7 @@ class Attendance
             $this->workEndStr,
             $this->totalWork,
             $this->actualWork,
-            $this->dayStr .' ' .$this->rest_h .':' .$this->rest_i .":00",
+            $this->totalRest,
             $this->timecardId
         ];
 
@@ -203,7 +225,7 @@ class Attendance
     }
     
     /**
-     * Attendanceクラスのプロパティにtimecardsレコードの各フィールドを設定する。
+     * 退勤時表示用および退勤情報設定用に、Attendanceクラスのプロパティにtimecardsレコードの各フィールドを設定する。
      *
      * @param [type] $timecardId
      * @return void
@@ -220,89 +242,131 @@ class Attendance
             $this->dayStr = $row[$i++];
             $this->workStart = new DateTimeImmutable($row[$i++]);
             $this->workStartStr = $this->workStart->format(self::DATETIME_FORMAT);
-            $this->workEnd = $row[$i++];
+            $this->workEnd = new DateTimeImmutable($row[$i++]);
             $this->workEndStr = $this->workEnd->format(self::DATETIME_FORMAT);
             $this->totalWork = $row[$i++];
             $this->actualWork = $row[$i++];
+            $this->totalRest = $row[$i++];
         }
-        $this->setRestTime($timecardId);
     }
 
+    /**
+     * 画面表示用にこのクラスのプロパティを取得する。
+     *
+     * @param [type] $timecardId
+     * @return void
+     */
     public function getAttendanceInfo($timecardId){
         $this->setAttendanceInfo($timecardId);
         $items = [
             'workStart' => $this->workStartStr,
             'workEnd' => $this->workEndStr,
-            'totalWork' => substr($this->totalWork,11),
-            'actualWork' => substr($this->actualWork,11),
-            0 => $this->rest_h,
-            1 => $this->rest_i,
+            // hh:iiにする
+            'totalWork' => $this->substrTime( $this->totalWork ),
+            'actualWork' => $this->substrTime( $this->actualWork),
+            'totalRest' => $this->substrTime( $this->totalRest)
         ];
         return $items;
     }
 
     /**
      * Attendanceクラスの$totalWorkプロパティと$actualWorkプロパティを設定する。
+     * $totalRestプロパティの設定後に行うこと。
      *
      * @return void
      */
     public function setWorkTimes(){
-        // 総労働時間の登録
-        $workTimeDiff = $this->workEnd->diff($this->workStart);
-        $this->totalWork = $this->dayStr .' '
-                            ."{$workTimeDiff->h}:{$workTimeDiff->i}:00";
-        // 実労働時間の登録
-        $this->actualWork = $this->dayStr .' '
-                            .$workTimeDiff->h - $this->rest_h
-                            .":"
-                            .$workTimeDiff->i - $this->rest_i
-                             .":00"
-                            ;
+        var_dump($this->totalRest);
+
+        /////////// x時間とy分、の計算でなく、 x時y分という時刻で計算してるっぽい?///////////////////////
+        // 時間設定の準備
+        $totalWork = strtotime($this->workEndStr) - strtotime($this->workStartStr);
+        $totalRest = strtotime($this->totalRest);
+        // 実労働時間を設定
+        $actualWork = $totalWork - $totalRest;
+        var_dump($totalWork);
+        echo '<br>';
+        var_dump($totalRest);
+        // タイムスタンプから時間・分にする。
+        $actualWork = $this->changeHI($actualWork);
+        // 時間の文字列を作り設定する。
+        $this->actualWork = $this->createTimeStr($actualWork);
+
+        // 総労働時間の設定
+        // タイムスタンプから時間・分にする。
+        $totalWork = $this->changeHI($totalWork);
+        // 時間の文字列を作り設定する。
+        $this->totalWork = $this->createTimeStr($totalWork);
     }
 
     /**
-     * Attendanceクラスの$rest_h, $rest_iプロパティを設定する。
+     * timecard_restsから休憩時間を取得して,総休憩時間文字列をプロパティに設定する
      *
      * @param [type] $timecardId
      * @return void
      */
     public function setRestTime($timecardId){
-        // 休憩時間をセットする。
-        $sql = "SELECT * FROM timecard_rests WHERE timecard_id = ?;";
+        $sql = "SELECT `start`,`end` FROM timecard_rests WHERE timecard_id = ? AND `end` IS NOT NULL;";
         $param = [$timecardId];
         $stmt = $this->db->select($sql,$param);
-
-        while($row = $stmt->fetch()){
-            // $row = [id,start,end,timecardId]
-            $restStart = new DateTimeImmutable($row[1]);
-            $restEnd = new DateTimeImmutable($row[2]);
-            $restDiff = $restEnd->diff($restStart);
-            $this->rest_h += $restDiff->h;
-            $this->rest_i += $restDiff->i;
+        $totalRest = 0;
+        foreach($stmt as $row){
+            $totalRest += strtotime($row[1]) - strtotime($row[0]);
         }
+        $totalRest = $this->changeHI($totalRest);
+        $this->totalRest = $this->createTimeStr($totalRest);
+
     }
 
-
-    public function getTotalRest($timecardId):array {
-        $sql = "SELECT `start`,`end` FROM timecard_rests
-                WHERE id = ?;";
-        $param = [$timecardId];
-        $stmt = $this->db->select($sql,$param);
-
-        $rest_h = 0;
-        $rest_i = 0;
-
-        foreach($stmt as $row){
-            $start = New DateTimeImmutable($row[0]);
-            $end = New DateTimeImmutable($row[1]) ?? $this->now;
-            $diff = $end->diff($start);
-            $rest_h = $diff->h;
-            $rest_i = $diff->i;
+    /**
+     * 画面表示用に休憩時間を取得。
+     *
+     * @param [type] $timecardId
+     * @return void
+     */
+    public function getRestTime($timecardId):string {
+        // 休憩時間を取得する。
+        if(empty($this->totalRest)){
+            $this->setRestTime($timecardId);
         }
-        if($rest_i / 60 > 0){
-            $rest_h = $rest_i / 60;
-            $rest_i = $rest_i % 60;
-        }
-        return [$rest_h, $rest_i];
+        return $this->substrTime($this->totalRest);
+    }
+
+    /**
+     * timestampを時と分に変換する
+     *
+     * @param [type] $timestamp
+     * @return array [$hour,$minute]
+     */
+    public function changeHI($timestamp):array {
+        // 全体を分に変換
+        $i = $timestamp % 60;
+        // 時(小数点切り捨て)
+        $hour = floor($i / 60);
+        // 分
+        $minute = $i % 60;
+        return [$hour, $minute];
+    }
+
+    /**
+     * 時間文字列を作成する(hh:ii:00)。数字が一桁のときは0をつける。
+     *
+     * @param array $time
+     * @return string
+     */
+    public function createTimeStr(array $time):string {
+        $h = ($time[0] < 10) ? "0"."$time[0]" : "$time[0]";
+        $i = ($time[1] < 10) ? "0"."$time[1]" : "$time[1]";
+        return "{$h}:{$i}:00";
+    }
+
+    /**
+     * 時間文字列hh:ii:00をhh:iiにする。
+     *
+     * @param [type] $timeStr
+     * @return string hh:ii
+     */
+    public function substrTime($timeStr):string {
+        return substr($timeStr,0,5);
     }
 }

@@ -1,22 +1,33 @@
 <?php
 require_once 'classes/attendance.php';
-if(!empty($_POST['timecardId'])){
-  $timecardId = $_POST['timecardId'];
+if(!empty($_POST['userId'])){
   $attendance = New Attendance;
+  $timecardId = empty($_POST['timecardId']) ? $attendance->getTimecardIdByUserId($_POST['userId']) : $_POST['timecardId'];
+
   if(!empty($_POST['end'])){
     $items = $attendance->getAttendanceInfo($timecardId);
     $start = $items['workStart'];
     $totalWork = $items['totalWork'];
     $actualWork = $items['actualWork'];
     $end = $items['workEnd'];
-    $rests = [$items['rest_h'], $items['rest_i']];
+    $rest = $items['totalRest'];
+
+    // postをクリアする。
+    $_POST = array();
   } else {
     // 勤務終了時と勤務開始前以外はこちらの分岐
     $start = $attendance->getStartWork($timecardId);
-    $rests = $attendance->getTotalRest($timecardId);
+    $rest = $attendance->getRestTime($timecardId);
   }
 }
+echo '<pre>';
+var_dump($rest);
+var_dump($_POST);
+var_dump($timecardId);
 var_dump($start);
+var_dump($end);
+echo '</pre>';
+
 ?>
 
 <!DOCTYPE html>
@@ -46,10 +57,10 @@ var_dump($start);
             <p>休憩</p>
             <button type="submit" id="start-rest" name="start-rest" value="start-rest" disabled >開始</button>
             <button type="submit" id="end-rest" name="end-rest" value="end-rest" disabled >終了</button>
-            <p>現在の総休憩時間: <?= isset($rests) ? $rests[0] .':' .$rests[1] : '00:00' ;?></p>
-            <p>勤務時間: <?= $totalWork ?? '00:00';?></p>
-            <p>実労働時間: <?= $actualWork ?? '00:00';?></p>
-            <input type="hidden" name="user" value='1'>
+            <p>総休憩時間: <?= isset($rest) ? $rest : '' ;?></p>
+            <p>勤務時間: <?= isset($totalWork) ? $totalWork : '00:00' ;?></p>
+            <p>実労働時間: <?= isset($actualWork) ? $actualWork : '00:00' ;?></p>
+            <input type="hidden" name="userId" value='1'>
             <input type="hidden" name="timecardId" value='<?= $timecardId ?? '';?>'>
         </form>
 

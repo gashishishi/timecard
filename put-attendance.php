@@ -11,9 +11,9 @@ function redirect() {
 if(!empty($_POST)){
     // 勤務開始でなければtimecardsを設定する。
     if(empty($_POST['start'])){
-        $timecards = $attendance->getTimecardByUserId($_POST['user']);
+        $timecards = $attendance->getTimecardByUserId($_POST['userId']);
     } else {
-        $attendance->startWork($_POST['user']);
+        $attendance->startWork($_POST['userId']);
         redirect();
     }
 }
@@ -31,11 +31,10 @@ foreach($timecards as $row){
 // 勤務開始以外
 if($timecard){
     if(is_null($timecard['end'])){
-        // $_POSTにtimecardIdを追加
-        $_POST['timecardId'] = $timecard['id'];
+
         if(!empty($_POST['end'])){
             $attendance->endWork($timecard['id']);
-            redirect();
+            // redirect();
         } else if(!empty($_POST['start-rest'])){
             $attendance->startRest($timecard['id']);
             redirect();

@@ -2,15 +2,14 @@
 require_once 'classes/attendance.php';
 if(!empty($_POST['userId'])){
   $attendance = New Attendance;
+  
+  /////// attendance 81行目の指定timecard探索は「end is null」で行っている。
+  /////// end時にはput-attendanceでendがnullでなくなってしまい取得できなくなる。
+  /////// 第二引数で判別させて、endの場合は指定ユーザーの最新のタイムカードを取得するようにする必要がある
 
-  $timecardId = null;
+  /////// あと労働時間計算ミスってる。
+  $timecardId = $attendance->getTimecardIdByUserId($_POST['userId']);
 
-  if(empty($_POST['timecardId'])){
-    // start時のみ$_POSTのtimecardIdが空なので、userIdで取得する
-    $timecardId = $attendance->getTimecardIdByUserId($_POST['userId']);
-  } else{
-    $timecardId = $_POST['timecardId'];
-  }
 
   if(!empty($_POST['end'])){
     $items = $attendance->getAttendanceInfo($timecardId);
@@ -22,8 +21,6 @@ if(!empty($_POST['userId'])){
 
     // end時はtimecardIdはいらない。
     $timecardId = null;
-    // postをクリアする。
-    $_POST = array();
     
   } else {
     // 勤務終了時と勤務開始前以外はこちらの分岐
@@ -69,7 +66,7 @@ if(!empty($_POST['userId'])){
             <p>勤務時間: <?= isset($totalWork) ? $totalWork : '00:00' ;?></p>
             <p>実労働時間: <?= isset($actualWork) ? $actualWork : '00:00' ;?></p>
             <input type="hidden" name="userId" value='1'>
-            <input type="hidden" name="timecardId" value='<?= $timecard ?? '' ;?>'>
+            <input type="hidden" name="timecardId" value='<?= $timecardId ?? '' ;?>'>
         </form>
 
     </div>

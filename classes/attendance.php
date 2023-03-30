@@ -2,6 +2,9 @@
 require_once 'classes/DB.php';
 date_default_timezone_set('Asia/Tokyo');
 
+/**
+ * 出退勤を管理するためのクラス
+ */
 class Attendance
 {    
     /** @var object データベースを操作するためのインスタンス */
@@ -55,10 +58,11 @@ class Attendance
 
     /** timecardIdをもとにtimecardsレコードを取得する */
     public function getTimecard($timecardId){
-        $sql = 'SELECT * FROM timecards WHERE id = ? AND `day` = ?;';
-        $param = [$timecardId, $this->dayStr];
+        $sql = 'SELECT * FROM timecards WHERE id = ?;';
+        $param = [$timecardId];
         $stmt = $this->db->select($sql, $param);
-        return $stmt;
+        $row = $stmt->fetch();
+        return $row;
     }
 
     /** userIdをもとにtimecardsレコードを取得する */
@@ -88,8 +92,8 @@ class Attendance
         $sql = "SELECT `start` FROM timecards WHERE id = ?;";
         $param = [$timecardId];
         $stmt = $this->db->select($sql,$param);
-        $start = $stmt->fetch()[0];
-        return $start;
+        $startTime = $stmt->fetch()[0];
+        return $startTime;
     }
 
     /**
@@ -173,16 +177,6 @@ class Attendance
             echo 'エラーが発生しました。';
         }
 
-        // $endRest = strtotime($this->nowStr);
-        // $add = $endRest - $startRest;
-        // var_dump($add);
-        // // timecardsに休憩時間を登録
-        // $sql = 'UPDATE timecards SET (total_rest_time = total_rest_time + ?)
-        //         WHERE id = ?     
-        //         ;';
-        // $param = [$add, $restId];
-        // $this->db->updateTotalRest($sql,$param);
-    
     }
 
     /**
@@ -251,7 +245,7 @@ class Attendance
     }
 
     /**
-     * 画面表示用にこのクラスのプロパティを取得する。
+     * 画面表示用にAttendanceクラスのプロパティを取得する。
      *
      * @param [type] $timecardId
      * @return void
@@ -276,26 +270,25 @@ class Attendance
      * @return void
      */
     public function setWorkTimes(){
-        var_dump($this->totalRest);
 
-        /////////// x時間とy分、の計算でなく、 x時y分という時刻で計算してるっぽい?///////////////////////
-        // 時間設定の準備
-        $totalWork = strtotime($this->workEndStr) - strtotime($this->workStartStr);
-        $totalRest = strtotime($this->totalRest);
+        // 時間設定の準備。秒にする
+        $workDiff = $this->workStart->diff($this->workEnd);
+        $totalWork = $this->changeHItoS([$workDiff->h, $workDiff->i]);
+        $totalRest = $this->changeHItoS( explode(':', $this->totalRest) );
+
         // 実労働時間を設定
         $actualWork = $totalWork - $totalRest;
-        var_dump($totalWork);
-        echo '<br>';
-        var_dump($totalRest);
-        // タイムスタンプから時間・分にする。
-        $actualWork = $this->changeHI($actualWork);
-        // 時間の文字列を作り設定する。
+        // var_dump($totalWork);
+        // echo '<br>';
+        // var_dump($totalRest);
+
+        // 秒から、時間・分 → 時間文字列にする。
+        $actualWork = $this->changeStoHI($actualWork);
         $this->actualWork = $this->createTimeStr($actualWork);
 
         // 総労働時間の設定
-        // タイムスタンプから時間・分にする。
-        $totalWork = $this->changeHI($totalWork);
-        // 時間の文字列を作り設定する。
+        // 秒から、時間・分 → 時間文字列にする。
+        $totalWork = $this->changeStoHI($totalWork);
         $this->totalWork = $this->createTimeStr($totalWork);
     }
 
@@ -309,13 +302,20 @@ class Attendance
         $sql = "SELECT `start`,`end` FROM timecard_rests WHERE timecard_id = ? AND `end` IS NOT NULL;";
         $param = [$timecardId];
         $stmt = $this->db->select($sql,$param);
-        $totalRest = 0;
+        $rest_h = 0;
+        $rest_i = 0;
         foreach($stmt as $row){
-            $totalRest += strtotime($row[1]) - strtotime($row[0]);
+            $start = New DateTimeImmutable($row[0]);
+            $end = New DateTimeImmutable($row[1]);
+            $diff = $end->diff($start);
+            $rest_h += $diff->h;
+            $rest_i += $diff->i;
         }
-        $totalRest = $this->changeHI($totalRest);
-        $this->totalRest = $this->createTimeStr($totalRest);
 
+        // 時間・分 → 秒 → 時間・分 → 時間文字列
+        $totalRest = $this->changeHItoS([$rest_h, $rest_i]);
+        $totalRest = $this->changeStoHI($totalRest);
+        $this->totalRest = $this->createTimeStr($totalRest);
     }
 
     /**
@@ -333,25 +333,26 @@ class Attendance
     }
 
     /**
-     * timestampを時と分に変換する
+     * 秒を時と分に変換する
      *
      * @param [type] $timestamp
      * @return array [$hour,$minute]
      */
-    public function changeHI($timestamp):array {
+    public function changeStoHI($second):array {
         // 全体を分に変換
-        $i = $timestamp % 60;
+        $i = $second / 60;
         // 時(小数点切り捨て)
         $hour = floor($i / 60);
         // 分
         $minute = $i % 60;
-        return [$hour, $minute];
+        // 一応intに
+        return [(int)$hour, $minute];
     }
 
     /**
      * 時間文字列を作成する(hh:ii:00)。数字が一桁のときは0をつける。
      *
-     * @param array $time
+     * @param array $time [hour, minute]
      * @return string
      */
     public function createTimeStr(array $time):string {
@@ -368,5 +369,15 @@ class Attendance
      */
     public function substrTime($timeStr):string {
         return substr($timeStr,0,5);
+    }
+
+    /**
+     * 時間と分を秒に変換する
+     *
+     * @param array $hi
+     * @return integer
+     */
+    public function changeHItoS(array $hi):int {
+        return ($hi[0] * 360) + ($hi[1] * 60);
     }
 }

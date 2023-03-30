@@ -34,7 +34,7 @@ if($timecard){
 
         if(!empty($_POST['end'])){
             $attendance->endWork($timecard['id']);
-            // redirect();
+            redirect();
         } else if(!empty($_POST['start-rest'])){
             $attendance->startRest($timecard['id']);
             redirect();

@@ -2,7 +2,15 @@
 require_once 'classes/attendance.php';
 if(!empty($_POST['userId'])){
   $attendance = New Attendance;
-  $timecardId = empty($_POST['timecardId']) ? $attendance->getTimecardIdByUserId($_POST['userId']) : $_POST['timecardId'];
+
+  $timecardId = null;
+
+  if(empty($_POST['timecardId'])){
+    // start時のみ$_POSTのtimecardIdが空なので、userIdで取得する
+    $timecardId = $attendance->getTimecardIdByUserId($_POST['userId']);
+  } else{
+    $timecardId = $_POST['timecardId'];
+  }
 
   if(!empty($_POST['end'])){
     $items = $attendance->getAttendanceInfo($timecardId);
@@ -12,21 +20,20 @@ if(!empty($_POST['userId'])){
     $end = $items['workEnd'];
     $rest = $items['totalRest'];
 
+    // end時はtimecardIdはいらない。
+    $timecardId = null;
     // postをクリアする。
     $_POST = array();
+    
   } else {
     // 勤務終了時と勤務開始前以外はこちらの分岐
-    $start = $attendance->getStartWork($timecardId);
+    $startWork = $attendance->getStartWork($timecardId);
+    // var_dump($startWork);
+    // var_dump($timecardId);
+    // $start = 
     $rest = $attendance->getRestTime($timecardId);
   }
 }
-echo '<pre>';
-var_dump($rest);
-var_dump($_POST);
-var_dump($timecardId);
-var_dump($start);
-var_dump($end);
-echo '</pre>';
 
 ?>
 
@@ -37,6 +44,7 @@ echo '</pre>';
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <style>.rest{margin-bottom: 0;}</style>
     <title>Timecard</title>
 </head>
 <body>
@@ -52,16 +60,16 @@ echo '</pre>';
             <p>タイムカード</p>
             <button type="submit" id="start" name="start" value="start">出勤</button>
             <p>出勤時間: <?= $start ?? '' ;?></p>
-            <button type="submit" id="end" name="end" value="end" disabled >退勤</button>
+            <button type="submit" id="end" name="end" value="end" >退勤</button>
             <p>退勤時間: <?= $end ?? '' ;?></p>
-            <p>休憩</p>
+            <p class="rest">休憩</p>
             <button type="submit" id="start-rest" name="start-rest" value="start-rest" disabled >開始</button>
             <button type="submit" id="end-rest" name="end-rest" value="end-rest" disabled >終了</button>
             <p>総休憩時間: <?= isset($rest) ? $rest : '' ;?></p>
             <p>勤務時間: <?= isset($totalWork) ? $totalWork : '00:00' ;?></p>
             <p>実労働時間: <?= isset($actualWork) ? $actualWork : '00:00' ;?></p>
             <input type="hidden" name="userId" value='1'>
-            <input type="hidden" name="timecardId" value='<?= $timecardId ?? '';?>'>
+            <input type="hidden" name="timecardId" value='<?= $timecard ?? '' ;?>'>
         </form>
 
     </div>
